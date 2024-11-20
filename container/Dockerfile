@@ -1,5 +1,7 @@
 FROM r-base:4.4.2
 
+LABEL org.opencontainers.image.source="https://github.com/eWaterCycle/ewatercycle-walrus"
+
 # curl is missing in this image, have to install it manually
 RUN apt -y update; apt -y install libcurl4-openssl-dev
 
