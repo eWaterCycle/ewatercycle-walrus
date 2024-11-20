@@ -4,18 +4,17 @@ from collections.abc import ItemsView
 from pathlib import Path
 from typing import Any
 
-from ewatercycle.base.forcing import GenericLumpedForcing
 from ewatercycle.base.model import ContainerizedModel, eWaterCycleModel
 from ewatercycle.container import ContainerImage
 
 
-class LeakyBucketMethods(eWaterCycleModel):
+class WALRUSMethods(eWaterCycleModel):
     """The eWatercycle LeakyBucket model.
     
     Setup args:
         leakiness: The "leakiness" of the bucket in [d-1].
     """
-    forcing: GenericLumpedForcing  # The model requires forcing.
+    forcing: None  # The model requires forcing.
     parameter_set: None  # The model has no parameter set.
 
     _config: dict = {
@@ -44,8 +43,8 @@ class LeakyBucketMethods(eWaterCycleModel):
         return self._config.items()
 
 
-class LeakyBucket(ContainerizedModel, LeakyBucketMethods):
-    """The LeakyBucket eWaterCycle model, with the Container Registry docker image."""
+class WALRUS(ContainerizedModel, WALRUSMethods):
+    """The WALRUS eWaterCycle model, with the Container Registry docker image."""
     bmi_image: ContainerImage = ContainerImage(
-        "ghcr.io/ewatercycle/leakybucket-grpc4bmi:v0.0.1"
+        "ghcr.io/ewatercycle/ewatercycle-walrus:latest"
     )
