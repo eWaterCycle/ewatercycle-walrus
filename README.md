@@ -1,5 +1,10 @@
 # eWaterCycle plugin for the WALRUS model
 
+Note: the [WALRUS BMI](https://raw.githubusercontent.com/eWaterCycle/grpc4bmi-examples/master/walrus/walrus-bmi.r) 
+is barely implemented and relies on "faking it"; `.update()` actually doesn't update the model:
+it ran the entire simulation already on `.initialize()`.
+
+This plugin is only to demonstrate communication between eWaterCycle and an R-based model inside a container.
 
 ## Installation
 

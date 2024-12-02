@@ -1,12 +1,10 @@
-"""Forcing related functionality for MARRMoT."""
+"""Forcing related functionality for WALRUS."""
 
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 import xarray as xr
-from scipy.io import loadmat
 
 from ewatercycle.base.forcing import DefaultForcing
 from ewatercycle.esmvaltool.builder import RecipeBuilder
@@ -49,7 +47,7 @@ class WALRUSForcing(DefaultForcing):
             from ewatercycle.testing.fixtures import rhine_shape
 
             shape = rhine_shape()
-            forcing = sources.MarrmotForcing.generate(
+            forcing = sources.WALRUSForcing.generate(
                 dataset='ERA5',
                 start_time='2000-01-01T00:00:00Z',
                 end_time='2001-01-01T00:00:00Z',
@@ -57,7 +55,7 @@ class WALRUSForcing(DefaultForcing):
             )
     """
 
-    forcing_file: Optional[str] = "forcing.dat"
+    forcing_file: str = ""
 
     @classmethod
     def _build_recipe(
@@ -68,7 +66,7 @@ class WALRUSForcing(DefaultForcing):
         dataset: Dataset | str | dict,
         **model_specific_options,
     ):
-        return build_marrmot_recipe(
+        return build_walrus_recipe(
             start_year=start_time.year,
             end_year=end_time.year,
             shape=shape,
@@ -78,7 +76,7 @@ class WALRUSForcing(DefaultForcing):
     @classmethod
     def _recipe_output_to_forcing_arguments(cls, recipe_output, model_specific_options):
         # key in recipe_output is concat of dataset, shape start year and end year
-        # for example 'marrmot_ERA5_Rhine_2000_2001.mat'
+        # for example 'WALRUS_ERA5_Rhine_2000_2001.dat'
         # instead of constructing key just use first and only value of dict
         first_forcing_file = next(iter(recipe_output.values()))
         return {"forcing_file": first_forcing_file}
@@ -92,51 +90,36 @@ class WALRUSForcing(DefaultForcing):
         if self.directory is None or self.forcing_file is None:
             raise ValueError("Directory or forcing_file is not set")
         fn = self.directory / self.forcing_file
-        dataset = loadmat(fn, mat_dtype=True)
-        # Generated forcing with ewatercycle has shape (1, <nr timestamps>)
-        # Mat files from elsewhere can have shape (<nr timestamps>, 1)
-        precip = dataset["forcing"]["precip"][0][0].flatten()
-        temp = dataset["forcing"]["temp"][0][0].flatten()
-        pet = dataset["forcing"]["pet"][0][0].flatten()
-        time_start = dataset["time_start"][0][:3]
-        forcing_start = datetime(*map(int, time_start))  # type: ignore
-        time_end = dataset["time_end"][0][:3]
-        forcing_end = datetime(*map(int, time_end))  # type: ignore
-        # store data as a pandas Series (deliberately keep default time: 00:00)
-        index = pd.date_range(forcing_start, forcing_end, name="time")
-        lat, lon = dataset["data_origin"][0]
+        
+        df = pd.read_csv(
+            fn, sep=" ", index_col=0, parse_dates=[0],date_format="%Y%m%d%H"
+        )
+
         # TODO use netcdf-cf conventions
         return xr.Dataset(
             {
                 "precipitation": (
-                    ["longitude", "latitude", "time"],
-                    [[precip]],
+                    ["time"],
+                    df["P"],
                     {"units": "mm/day"},
                 ),
-                "temperature": (
-                    ["longitude", "latitude", "time"],
-                    [[temp]],
-                    {"units": "C"},
-                ),
                 "evspsblpot": (
-                    ["longitude", "latitude", "time"],
-                    [[pet]],
+                    ["time"],
+                    df["ETpot"],
                     {"units": "mm/day"},
                 ),
             },
             coords={
-                "lon": (["longitude", "latitude"], [[lon]]),
-                "lat": (["longitude", "latitude"], [[lat]]),
-                "time": index,
+                "time": df.index,
             },
             attrs={
-                "title": "MARRMoT forcing data",
-                "history": "Created by ewatercycle_marrmot.forcing.MarrmotForcing.to_xarray()",
+                "title": "WALRUS forcing data",
+                "history": "Created by ewatercycle_walrus.forcing.WALRUSForcing.to_xarray()",
             },
         )
 
 
-def build_marrmot_recipe(
+def build_walrus_recipe(
     start_year: int,
     end_year: int,
     shape: Path,

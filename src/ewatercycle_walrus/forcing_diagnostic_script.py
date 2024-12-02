@@ -1,16 +1,19 @@
-"""Marrmot diagnostic."""
+"""WALRUS diagnostic."""
+import csv
 import logging
 from pathlib import Path
 
 import iris
-import numpy as np
-import scipy.io as sio
+import pandas as pd
+import xarray as xr
 
 from esmvalcore import preprocessor as preproc
 from esmvaltool.diag_scripts.hydrology.derive_evspsblpot import debruin_pet
-from esmvaltool.diag_scripts.shared import (ProvenanceLogger,
-                                            get_diagnostic_filename,
-                                            group_metadata, run_diagnostic)
+from esmvaltool.diag_scripts.shared import (
+    ProvenanceLogger,
+    get_diagnostic_filename,
+    group_metadata, run_diagnostic
+)
 
 logger = logging.getLogger(Path(__file__).name)
 
@@ -18,13 +21,9 @@ logger = logging.getLogger(Path(__file__).name)
 def create_provenance_record():
     """Create a provenance record."""
     record = {
-        'caption': "Forcings for the Marrmot hydrological model.",
+        'caption': "Forcings for the WALRUS hydrological model.",
         'domains': ['global'],
-        'authors': [
-            'kalverla_peter',
-            'camphuijsen_jaro',
-            'alidoost_sarah',
-        ],
+        'authors': [],
         'projects': [
             'ewatercycle',
         ],
@@ -95,7 +94,7 @@ def _shift_era5_time_coordinate(cube):
 
 
 def main(cfg):
-    """Process data for use as input to the marrmot hydrological model.
+    """Process data for use as input to the WALRUS hydrological model.
 
     These variables are needed in all_vars:
     tas (air_temperature)
@@ -114,7 +113,7 @@ def main(cfg):
             _shift_era5_time_coordinate(all_vars['tas'])
 
         # Processing variables and unit conversion
-        # Unit of the fluxes in marrmot should be in kg m-2 day-1 (or mm/day)
+        # Unit of the fluxes in WALRUS should be in kg m-2 day-1 (or mm/day)
         logger.info("Processing variable PET")
         pet = debruin_pet(
             psl=all_vars['psl'],
@@ -133,36 +132,32 @@ def main(cfg):
         precip = preproc.area_statistics(all_vars['pr'], operator='mean')
         precip.convert_units('kg m-2 day-1')  # equivalent to mm/day
 
-        # Get the start and end times and latitude longitude
-        time_start_end, lat_lon = _get_extra_info(temp)
-
-        # make data structure
-        # use astype(np.float64) to make sure data is in
-        # double-Precision Floating Point
-        # delta_t_days could also be extracted from the cube
-        output_data = {
-            'forcing': {
-                'precip': precip.data.astype(np.float64),
-                'temp': temp.data.astype(np.float64),
-                'pet': pet.data.astype(np.float64),
-                'delta_t_days': float(1),
-                'time_unit': 'day',
+        dateindex = pd.DatetimeIndex(
+            data=xr.DataArray.from_iris(temp)["time"].to_series(),
+            name="date",
+        )
+        df_out = pd.DataFrame(
+            data={
+                "P": precip.data,
+                "ETpot": pet.data,
             },
-            'time_start': time_start_end[0],
-            'time_end': time_start_end[1],
-            'data_origin': lat_lon,
-        }
+            index=dateindex.strftime("%Y%m%d%H").astype(int),
+        )
 
-        # Save to matlab structure
+        # Save to R-compatible .dat file
         basename = '_'.join([
-            'marrmot',
+            'WALRUS',
             dataset,
             cfg['basin'],
-            str(int(output_data['time_start'][0])),
-            str(int(output_data['time_end'][0])),
+            str(df_out.index[0]),
+            str(df_out.index[0]),
         ])
-        output_name = get_diagnostic_filename(basename, cfg, extension='mat')
-        sio.savemat(output_name, output_data)
+        output_name = get_diagnostic_filename(basename, cfg, extension='dat')
+        df_out.to_csv(
+            output_name,
+            sep=" ",
+            quoting=csv.QUOTE_NONNUMERIC,
+        )
 
         # Store provenance
         with ProvenanceLogger(cfg) as provenance_logger:

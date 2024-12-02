@@ -1,18 +1,9 @@
-FROM r-base:4.4.2
+FROM ghcr.io/ewatercycle/remotebmi-r:0.1.0
 
 LABEL org.opencontainers.image.source="https://github.com/eWaterCycle/ewatercycle-walrus"
 
-# curl is missing in this image, have to install it manually
-RUN apt -y update; apt -y install libcurl4-openssl-dev
-
-# Install pak to install from github
-RUN R -e 'install.packages("pak")'
-
 # Install remotebmi & WALRUS & Bmi-r
 RUN R -e 'pak::pak("github::ClaudiaBrauer/WALRUS")'
-RUN R -e 'pak::pak("github::eWaterCycle/bmi-r")'
-RUN R -e 'pak::pak("configr")'
-RUN R -e 'pak::pak("github::eWaterCycle/remotebmi/R")'
 
 # Get WALRUS BMI implementation
 RUN wget https://raw.githubusercontent.com/eWaterCycle/grpc4bmi-examples/master/walrus/walrus-bmi.r
@@ -26,4 +17,4 @@ ENV BMI_HOST=0.0.0.0
 ENV BMI_PORT=50051
 
 EXPOSE 50051
-CMD ["R", "-f", "/r-scripts/serve_walrus.R"]
+CMD ["Rscript", "/r-scripts/serve_walrus.R"]
